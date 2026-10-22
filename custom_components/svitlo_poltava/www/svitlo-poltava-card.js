@@ -71,7 +71,6 @@ const escape = (value) => String(value).replace(/[&<>"]/g, (ch) => ({ '&': '&amp
 const STATE_RED = 'rgb(var(--rgb-red, 244, 67, 54))';
 const STATE_GREEN = 'rgb(var(--rgb-green, 76, 175, 80))';
 const STATE_GREY = 'rgb(var(--rgb-disabled, 107, 107, 107))';
-const slotFmt = (i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`;
 
 function findScheduleEntity(states) {
   const ids = Object.keys(states).filter((id) => (
@@ -100,8 +99,6 @@ const CARD_STYLE = `
     flex: none;
     --tile-icon-color: var(--tile-color);
     --tile-icon-opacity: 0;
-    background: color-mix(in srgb, var(--tile-color) 16%, transparent);
-    border-radius: 50%;
   }
   .content ha-tile-info { flex: 1; min-width: 0; }
 
@@ -487,37 +484,11 @@ class SvitloPoltavaCard extends HTMLElement {
       ? states[presence].state === 'on'
       : series[idx] === 'on';
 
-    let curEnd = null;
-    const kind = series[idx];
-    if (kind === 'off' || kind === 'possible') {
-      let i = idx;
-      while (i < series.length && series[i] === kind) i += 1;
-      curEnd = i;
-    }
-
-    let next = null;
-    for (let i = idx + 1; i < series.length; i += 1) {
-      const blocked = series[i] === 'off' || series[i] === 'possible';
-      const previous = i > 0 && (series[i - 1] === 'off' || series[i - 1] === 'possible');
-      if (!blocked || previous) continue;
-      next = i;
-      break;
-    }
-
-    const title = this._config.title || L.tileTitle;
-    if (on) {
-      return {
-        title,
-        secondary: next === null ? `${L.powerOn} · ${L.noWindows}` : `${L.powerOn} · ${L.next} ${slotFmt(next)}`,
-        icon: 'mdi:transmission-tower',
-        color: STATE_GREEN,
-      };
-    }
     return {
-      title,
-      secondary: curEnd === null ? L.powerOff : `${L.powerOff} · ${L.until} ${slotFmt(curEnd)}`,
-      icon: 'mdi:transmission-tower-off',
-      color: STATE_RED,
+      title: this._config.title || L.tileTitle,
+      secondary: on ? L.powerOn : L.powerOff,
+      icon: on ? 'mdi:transmission-tower' : 'mdi:transmission-tower-off',
+      color: on ? STATE_GREEN : STATE_RED,
     };
   }
 }

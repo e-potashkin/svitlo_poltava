@@ -56,7 +56,7 @@ Every option is optional:
 | `title` | `Наявність світла` / `Power present` | tile title |
 | `dialog_title` | `Графік на сьогодні` / `Today's schedule` | dialog title |
 
-The tile shows the real light and the current or next window. Tap it to open
+The tile shows the real light. Tap it to open
 the 24-hour rail, one row per window, tomorrow's windows, and the plan and
 measured hours. The dialog is a native `<dialog>`: Escape and a backdrop click
 close it, and the close button sits on the left like the browser_mod popup.
