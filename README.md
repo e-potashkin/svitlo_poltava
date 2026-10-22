@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/icon.png" width="96" alt="Svitlo Poltava"></p>
+
 # Svitlo Poltava
 
 Power outage schedule for **Poltava**, for Home Assistant. Choose your queue —
