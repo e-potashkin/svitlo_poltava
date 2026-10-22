@@ -154,14 +154,6 @@ The page contains one or more day blocks with a 48-cell table per queue. The
 parser is in `custom_components/svitlo_poltava/poe_gpv.py`; the coordinator maps
 the queue from the config entry to the 48 half-hour slots.
 
-## Tests
-
-```bash
-python3 tests/test_poe_gpv.py
-```
-
-The parser test uses a real page snapshot in `tests/fixtures/`.
-
 ## License
 
 MIT. Copyright (c) 2026 e-potashkin.
