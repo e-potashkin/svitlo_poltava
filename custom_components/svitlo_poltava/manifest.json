@@ -1,10 +1,10 @@
 {
   "domain": "svitlo_poltava",
   "name": "Svitlo Poltava",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "https://github.com/e-potashkin/svitlo_poltava",
   "issue_tracker": "https://github.com/e-potashkin/svitlo_poltava/issues",
-  "dependencies": ["frontend"],
+  "dependencies": ["frontend", "http"],
   "codeowners": [
     "@e-potashkin"
   ],
