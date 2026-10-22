@@ -50,7 +50,7 @@ The card follows the real light, not only the plan.
 
 | Off | On | No data |
 | --- | --- | --- |
-| ![Tile, light off](docs/state-tile-off.png) | ![Tile, light on](docs/state-tile-on.png) | ![Tile, no data](docs/state-tile-empty.png) |
+| <img src="docs/state-tile-off.png" width="250" alt="Tile, light off"> | <img src="docs/state-tile-on.png" width="250" alt="Tile, light on"> | <img src="docs/state-tile-empty.png" width="250" alt="Tile, no data"> |
 
 ## Features
 
