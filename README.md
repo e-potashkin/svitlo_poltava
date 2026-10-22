@@ -146,16 +146,6 @@ things:
 The card finds the schedule sensor automatically. If you rename the sensor,
 set `entity` explicitly.
 
-## Migration from `svitlo_live`
-
-1. Note the entity IDs and templates that read `sensor.svitlo_*` or
-   `calendar.svitlo_*`.
-2. Remove the old **Svitlo.live Schedules** config entry and integration.
-3. Install **Svitlo Poltava** and add its entry.
-4. Point your templates, automations, and dashboards to the new entity IDs.
-
-The component does not rename or remove another integration's entities.
-
 ## Data source
 
 `https://www.poe.pl.ua/customs/dynamicgpv-info.php`
