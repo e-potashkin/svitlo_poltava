@@ -4,17 +4,25 @@
     "step": {
       "user": {
         "title": "Svitlo Poltava",
-        "description": "Adds the Poltavaoblenergo outage schedule for Poltava, queue 3.1. One entry is enough."
+        "description": "Choose your queue in Poltava oblast. The list comes from the operator page; 3.1 is the default.",
+        "data": {
+          "queue": "Queue"
+        }
       }
     },
     "abort": {
       "single_instance_allowed": "Svitlo Poltava is already configured."
+    },
+    "error": {
+      "cannot_connect": "Cannot read the operator page. Check the network, or type the queue.",
+      "invalid_queue": "This queue is not on the operator page."
     }
   },
   "options": {
     "step": {
       "init": {
         "data": {
+          "queue": "Queue",
           "scan_interval_seconds": "Update interval (seconds)"
         }
       }

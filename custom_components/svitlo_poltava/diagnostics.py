@@ -18,5 +18,6 @@ async def async_get_config_entry_diagnostics(
     return {
         "entry": entry.as_dict(),
         "source": POE_GPV_URL,
+        "queue": coordinator.queue,
         "coordinator_data": coordinator.data,
     }

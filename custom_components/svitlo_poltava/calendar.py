@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 # Імпортуємо slugify для генерації suggested_object_id (якщо знадобиться)
 
-from .const import DOMAIN, QUEUE, REGION
+from .const import DOMAIN, REGION
 
 # Таймзона України
 TZ_KYIV = dt_util.get_time_zone("Europe/Kyiv")
@@ -38,8 +38,8 @@ class SvitloCalendar(CoordinatorEntity, CalendarEntity):
         super().__init__(coordinator)
         self._entry = entry
         self._region = REGION
-        self._queue = QUEUE
-        self._attr_unique_id = f"svitlo_poltava_calendar_{QUEUE}"
+        self._queue = coordinator.queue
+        self._attr_unique_id = f"svitlo_poltava_calendar_{self._queue}"
         self._event: Optional[CalendarEvent] = None
 
     @property
@@ -192,7 +192,7 @@ class SvitloCalendar(CoordinatorEntity, CalendarEntity):
         end_local = idx_to_dt(end_idx)
 
         return CalendarEvent(
-            summary=f"Svitlo Poltava {QUEUE}: ❌ Відключення",
+            summary=f"Svitlo Poltava {self._queue}: ❌ Відключення",
             start=dt_util.as_utc(start_local),
             end=dt_util.as_utc(end_local),
             description=f"Немає світла {start_local.strftime('%H:%M')}–{end_local.strftime('%H:%M')}",
@@ -226,9 +226,9 @@ class SvitloCalendar(CoordinatorEntity, CalendarEntity):
     @property
     def device_info(self) -> dict[str, Any]:
         return {
-            "identifiers": {(DOMAIN, QUEUE)},
+            "identifiers": {(DOMAIN, self._queue)},
             "manufacturer": "e-potashkin",
-            "model": f"Queue {QUEUE}",
-            "name": f"Svitlo Poltava {QUEUE}",
+            "model": f"Queue {self._queue}",
+            "name": f"Svitlo Poltava {self._queue}",
             "configuration_url": "https://github.com/e-potashkin/svitlo_poltava",
         }

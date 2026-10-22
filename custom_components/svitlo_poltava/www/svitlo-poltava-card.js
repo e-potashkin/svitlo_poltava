@@ -29,7 +29,7 @@
 const TAG = 'svitlo-poltava-card';
 
 const DEFAULTS = {
-  entity: 'sensor.svitlo_poltava_3_1_electricity',
+  entity: '',
   presence_entity: '',
   off_today_entity: '',
   title: '',
@@ -72,6 +72,15 @@ const STATE_RED = 'rgb(var(--rgb-red, 244, 67, 54))';
 const STATE_GREEN = 'rgb(var(--rgb-green, 76, 175, 80))';
 const STATE_GREY = 'rgb(var(--rgb-disabled, 107, 107, 107))';
 const slotFmt = (i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`;
+
+function findScheduleEntity(states) {
+  const ids = Object.keys(states).filter((id) => (
+    /^sensor\.svitlo_poltava_.*_electricity$/.test(id)
+    && Array.isArray(states[id].attributes && states[id].attributes.today_48half)
+  ));
+  ids.sort();
+  return ids[0] || 'sensor.svitlo_poltava_3_1_electricity';
+}
 
 const CARD_STYLE = `
   :host { display: block; height: 100%; }
@@ -136,7 +145,7 @@ const CARD_STYLE = `
 function renderSchedule(hass, config) {
   const states = (hass && hass.states) || {};
   const L = TEXT[langOf(hass)];
-  const E = config.entity || DEFAULTS.entity;
+  const E = config.entity || findScheduleEntity(states);
   const stateObj = states[E];
   const a = (stateObj && stateObj.attributes) || {};
   const today = a.today_48half || [];
@@ -463,7 +472,7 @@ class SvitloPoltavaCard extends HTMLElement {
 
   _view(L) {
     const states = (this._hass && this._hass.states) || {};
-    const entity = this._config.entity || DEFAULTS.entity;
+    const entity = this._config.entity || findScheduleEntity(states);
     const stateObj = states[entity];
     if (!stateObj) {
       return { title: this._config.title || L.tileTitle, secondary: L.noData, icon: 'mdi:transmission-tower-off', color: STATE_GREY };

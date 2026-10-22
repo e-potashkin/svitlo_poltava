@@ -13,7 +13,7 @@ from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, POE_GPV_URL, QUEUE
+from .const import DOMAIN, POE_GPV_URL
 from .poe_gpv import STATE_OFF, STATE_ON, STATE_POSSIBLE, parse_poe_page
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,8 +25,8 @@ CACHE_SECONDS = 120
 class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """One queue: fetch the operator page, build the 48-slot day."""
 
-    def __init__(self, hass: HomeAssistant, scan_interval: int) -> None:
-        self.queue = QUEUE
+    def __init__(self, hass: HomeAssistant, queue: str, scan_interval: int) -> None:
+        self.queue = queue
         self._history_today: list[list[str]] = []
         self._history_tomorrow: list[list[str]] = []
         self._unsub_precise: Optional[Callable[[], None]] = None
@@ -37,7 +37,7 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         super().__init__(
             hass=hass,
             logger=_LOGGER,
-            name=f"{DOMAIN}_{QUEUE}",
+            name=f"{DOMAIN}_{queue}",
             update_interval=timedelta(seconds=scan_interval),
         )
 

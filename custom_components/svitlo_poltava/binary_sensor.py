@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, QUEUE
+from .const import DOMAIN
 
 
 async def async_setup_entry(
@@ -32,10 +32,10 @@ class SvitloBaseEntity(CoordinatorEntity):
     @property
     def device_info(self) -> dict[str, Any]:
         return {
-            "identifiers": {(DOMAIN, QUEUE)},
+            "identifiers": {(DOMAIN, self.coordinator.queue)},
             "manufacturer": "e-potashkin",
-            "model": f"Queue {QUEUE}",
-            "name": f"Svitlo Poltava {QUEUE}",
+            "model": f"Queue {self.coordinator.queue}",
+            "name": f"Svitlo Poltava {self.coordinator.queue}",
             "configuration_url": "https://github.com/e-potashkin/svitlo_poltava",
         }
 
@@ -52,7 +52,7 @@ class SvitloElectricityStatusBinary(SvitloBaseEntity, BinarySensorEntity):
     def __init__(self, coordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         # ❗ ПОВЕРНУЛИ СТАРИЙ ID (з entry_id, як було раніше)
-        self._attr_unique_id = f"svitlo_poltava_power_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_power_{coordinator.queue}"
 
     @property
     def is_on(self) -> bool | None:
@@ -80,7 +80,7 @@ class SvitloEmergencyBinary(SvitloBaseEntity, BinarySensorEntity):
     def __init__(self, coordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         # Цей ID теж робимо по аналогії з Power, щоб було консистентно
-        self._attr_unique_id = f"svitlo_poltava_emergency_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_emergency_{coordinator.queue}"
     
     @property
     def is_on(self) -> bool | None:

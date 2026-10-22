@@ -7,8 +7,8 @@ from homeassistant.const import Platform
 DOMAIN = "svitlo_poltava"
 NAME = "Svitlo Poltava"
 
-# Eugene's queue in Poltava oblast. The operator page lists it as 3.1.
-QUEUE = "3.1"
+# The queue is chosen in the config flow. 3.1 is Eugene's queue and the default.
+DEFAULT_QUEUE = "3.1"
 REGION = "Poltava"
 
 PLATFORMS: list[Platform] = [
@@ -17,8 +17,9 @@ PLATFORMS: list[Platform] = [
     Platform.CALENDAR,
 ]
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 DEFAULT_SCAN_INTERVAL = 120
+CONF_QUEUE = "queue"
 CONF_SCAN_INTERVAL = "scan_interval_seconds"
 
 # The official schedule of Poltavaoblenergo. One page carries today and, in the

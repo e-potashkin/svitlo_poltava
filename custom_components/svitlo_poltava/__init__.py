@@ -1,4 +1,4 @@
-"""Svitlo Poltava: the Poltavaoblenergo outage schedule for queue 3.1."""
+"""Svitlo Poltava: the Poltavaoblenergo outage schedule for the chosen queue."""
 
 from __future__ import annotations
 
@@ -10,11 +10,15 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CARD_STATIC_PATH,
     CARD_URL,
+    CONF_QUEUE,
     CONF_SCAN_INTERVAL,
+    DEFAULT_QUEUE,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     PLATFORMS,
@@ -46,11 +50,14 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up one queue entry."""
+    """Set up the selected queue."""
+    queue = entry.data.get(CONF_QUEUE, DEFAULT_QUEUE)
+    await _async_cleanup(hass, entry, queue)
+
     interval = int(
         entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     )
-    coordinator = SvitloPoltavaCoordinator(hass, interval)
+    coordinator = SvitloPoltavaCoordinator(hass, queue, interval)
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
@@ -68,5 +75,22 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload when the scan interval changes."""
+    """Reload when the queue or the scan interval changes."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def _async_cleanup(hass: HomeAssistant, entry: ConfigEntry, queue: str) -> None:
+    """Remove entities and the device that belong to a previous queue.
+
+    Every unique_id ends with the queue, so a queue change leaves the old ones
+    behind. The reload calls this before the platforms create the new set.
+    """
+    entity_reg = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(entity_reg, entry.entry_id):
+        if not entity.unique_id.endswith(f"_{queue}"):
+            entity_reg.async_remove(entity.entity_id)
+
+    device_reg = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
+        if (DOMAIN, queue) not in device.identifiers:
+            device_reg.async_remove_device(device.id)

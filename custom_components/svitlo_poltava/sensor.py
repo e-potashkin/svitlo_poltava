@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, QUEUE, REGION
+from .const import DOMAIN, REGION
 
 
 async def async_setup_entry(
@@ -48,10 +48,10 @@ class SvitloBaseEntity(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> dict[str, Any]:
         return {
-            "identifiers": {(DOMAIN, QUEUE)},
+            "identifiers": {(DOMAIN, self.coordinator.queue)},
             "manufacturer": "e-potashkin",
-            "model": f"Queue {QUEUE}",
-            "name": f"Svitlo Poltava {QUEUE}",
+            "model": f"Queue {self.coordinator.queue}",
+            "name": f"Svitlo Poltava {self.coordinator.queue}",
             "configuration_url": "https://github.com/e-potashkin/svitlo_poltava",
         }
 
@@ -63,7 +63,7 @@ class SvitloStatusSensor(SvitloBaseEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_status_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_status_{coordinator.queue}"
 
     @property
     def native_value(self) -> str | None:
@@ -89,7 +89,7 @@ class SvitloStatusSensor(SvitloBaseEntity):
         data = getattr(self.coordinator, "data", {}) or {}
         return {
             "region": REGION,
-            "queue": QUEUE,
+            "queue": self.coordinator.queue,
             "now_status": data.get("now_status"),
             "today_48half": data.get("today_48half", []),
             "tomorrow_48half": data.get("tomorrow_48half", []),
@@ -116,7 +116,7 @@ class SvitloNextGridConnectionSensor(SvitloBaseEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_next_grid_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_next_grid_{coordinator.queue}"
 
     @property
     def native_value(self):
@@ -136,7 +136,7 @@ class SvitloNextOutageSensor(SvitloBaseEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_next_off_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_next_off_{coordinator.queue}"
 
     @property
     def native_value(self):
@@ -197,7 +197,7 @@ class SvitloNextPowerOn(SecondsRemainEntity):
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
         # Новий ID
-        self._attr_unique_id = f"svitlo_poltava_next_power_on_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_next_power_on_{coordinator.queue}"
 
     @property
     def native_value(self) -> Optional[int]:
@@ -216,7 +216,7 @@ class SvitloNextPowerOff(SecondsRemainEntity):
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
         # Новий ID
-        self._attr_unique_id = f"svitlo_poltava_next_power_off_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_next_power_off_{coordinator.queue}"
 
     @property
     def native_value(self) -> Optional[int]:
@@ -269,7 +269,7 @@ class SvitloMinutesToGridConnection(_MinutesBase):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_min_to_on_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_min_to_on_{coordinator.queue}"
 
     @property
     def native_value(self) -> Optional[int]:
@@ -287,7 +287,7 @@ class SvitloMinutesToOutage(_MinutesBase):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_min_to_off_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_min_to_off_{coordinator.queue}"
 
     @property
     def native_value(self) -> Optional[int]:
@@ -305,7 +305,7 @@ class SvitloScheduleUpdatedSensor(SvitloBaseEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_updated_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_updated_{coordinator.queue}"
 
     @property
     def native_value(self):
@@ -327,7 +327,7 @@ class SvitloOutageHoursToday(SvitloBaseEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_outage_today_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_outage_today_{coordinator.queue}"
 
     @property
     def native_value(self) -> Optional[float]:
@@ -346,7 +346,7 @@ class SvitloOutageHoursTomorrow(SvitloBaseEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_outage_tomorrow_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_outage_tomorrow_{coordinator.queue}"
 
     @property
     def native_value(self) -> Optional[float]:
@@ -365,7 +365,7 @@ class SvitloLongestOutage(SvitloBaseEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_longest_outage_{QUEUE}"
+        self._attr_unique_id = f"svitlo_poltava_longest_outage_{coordinator.queue}"
 
     @property
     def native_value(self) -> Optional[float]:
