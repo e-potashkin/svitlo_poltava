@@ -1,0 +1,73 @@
+{
+  "title": "Svitlo Poltava",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Svitlo Poltava",
+        "description": "Adds the Poltavaoblenergo outage schedule for Poltava, queue 3.1. One entry is enough."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Svitlo Poltava is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval_seconds": "Update interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "svitlo_status": {
+        "name": "Electricity"
+      },
+      "svitlo_next_grid": {
+        "name": "Next grid connection"
+      },
+      "svitlo_next_outage": {
+        "name": "Next outage"
+      },
+      "svitlo_min_to_on": {
+        "name": "Minutes to grid connection"
+      },
+      "svitlo_min_to_off": {
+        "name": "Minutes to outage"
+      },
+      "svitlo_next_power_on": {
+        "name": "Next power on"
+      },
+      "svitlo_next_power_off": {
+        "name": "Next power off"
+      },
+      "svitlo_updated": {
+        "name": "Schedule updated"
+      },
+      "svitlo_outage_today": {
+        "name": "Total outage today"
+      },
+      "svitlo_outage_tomorrow": {
+        "name": "Total outage tomorrow"
+      },
+      "svitlo_longest_outage": {
+        "name": "Longest outage"
+      }
+    },
+    "binary_sensor": {
+      "svitlo_electricity_status": {
+        "name": "Power present"
+      },
+      "svitlo_emergency": {
+        "name": "Emergency outages"
+      }
+    },
+    "calendar": {
+      "svitlo_calendar": {
+        "name": "Outage schedule"
+      }
+    }
+  }
+}
