@@ -6,14 +6,16 @@ The integration reads only the official Poltavaoblenergo page
 `poe.pl.ua/customs/dynamicgpv-info.php`. No proxies, no other regions, no merge
 of two APIs, no Python dependencies.
 
-The Lovelace card is included. HACS installs the integration, and the card is
-loaded automatically — no manual resource entry.
+The Lovelace card is included. It is a power tile; tap it and the schedule
+opens in a native dialog with the same look the dashboard used with
+browser_mod — without browser_mod. HACS installs the integration, and the card
+is loaded automatically; no manual resource entry.
 
 ## Screenshots
 
-![Card during an outage](docs/card-off.png)
+![Schedule dialog](docs/card-dialog.png)
 
-![Card with power on](docs/card-on.png)
+![Power tile](docs/card-tile.png)
 
 ## Features
 
@@ -42,13 +44,22 @@ dashboard:
 
 ```yaml
 type: custom:svitlo-poltava-card
-entity: sensor.svitlo_poltava_3_1_electricity
-title: Poltava — 3.1
 ```
 
-The card draws a 24-hour timeline, the half-hour slots, the next window, the
-outage hours, and the schedule update time. The visual editor can select the
-calendar and the related sensors.
+Every option is optional:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `entity` | `sensor.svitlo_poltava_3_1_electricity` | the schedule sensor |
+| `presence_entity` | `binary_sensor.grid_present` if it exists, otherwise `binary_sensor.svitlo_poltava_3_1_power_present` | the real light |
+| `off_today_entity` | `sensor.grid_off_today` if it exists, otherwise none | measured outage hours; without it the footer prints `—` |
+| `title` | `Наявність світла` / `Power present` | tile title |
+| `dialog_title` | `Графік на сьогодні` / `Today's schedule` | dialog title |
+
+The tile shows the real light and the current or next window. Tap it to open
+the 24-hour rail, one row per window, tomorrow's windows, and the plan and
+measured hours. The dialog is a native `<dialog>`: Escape and a backdrop click
+close it, and the close button sits on the left like the browser_mod popup.
 
 ## Entities
 
