@@ -14,9 +14,43 @@ automatically; no manual resource entry.
 
 ## Screenshots
 
-![Schedule dialog](docs/card-dialog.png)
+![Schedule dialog](docs/state-dialog-lit.png)
 
-![Power tile](docs/card-tile.png)
+![Power tile](docs/state-tile-off.png)
+
+## States
+
+The card follows the real light, not only the plan.
+
+### Outage in effect
+
+![Outage in effect](docs/state-dialog-off.png)
+
+### Possible window, light off
+
+![Possible window](docs/state-dialog-possible.png)
+
+### Light on during a planned window
+
+![Light on during a planned window](docs/state-dialog-lit.png)
+
+### Light on, next outage
+
+![Light on, next outage](docs/state-dialog-next.png)
+
+### Tomorrow published
+
+![Tomorrow published](docs/state-dialog-tomorrow.png)
+
+### No schedule
+
+![No schedule](docs/state-dialog-empty.png)
+
+### Tile: light off / on / no data
+
+| Off | On | No data |
+| --- | --- | --- |
+| ![Tile, light off](docs/state-tile-off.png) | ![Tile, light on](docs/state-tile-on.png) | ![Tile, no data](docs/state-tile-empty.png) |
 
 ## Features
 

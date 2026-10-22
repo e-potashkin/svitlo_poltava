@@ -274,6 +274,8 @@ function renderSchedule(hass, config) {
     .row.possible i { background: rgba(255,255,255,.35); }
     .row.possible em { background: rgba(255,255,255,.07); color: rgba(255,255,255,.58); }
     .row.possible.next { box-shadow: none; }
+    .row.next.possible { background: rgba(255,255,255,.03); }
+    .row.next.possible em { border-color: rgba(255,255,255,.22); color: rgba(255,255,255,.55); }
     .row.lit { background: rgba(90,208,122,.07); border-radius: 12px; padding: 9px 18px; margin: 0 -18px; }
     .row.lit i { background: #5ad07a; box-shadow: 0 0 0 3px rgba(90,208,122,.18); }
     .row.lit b { color: #fff; }
@@ -306,11 +308,15 @@ function renderSchedule(hass, config) {
   const nextStart = (runs.find((r) => r.start > nowi) || {}).start;
   const runState = (r) => (r.end <= nowi ? 'past' : r.start <= nowi ? 'now' : r.start === nextStart ? 'next' : 'future');
   const rail = runs.map((r) => `<div class="blk ${shownState(runState(r))} ${r.kind}" style="left:${(r.start / 48 * 100).toFixed(2)}%;width:${((r.end - r.start) / 48 * 100).toFixed(2)}%"></div>`).join('');
+  const currentPossible = today[nowi] === 'possible';
   const rows = blocks.map((b, i) => {
     const state = shownState(stateOf(b, i));
+    // A possible window is a warning, not a certain outage. When the current
+    // slot is only possible, the row must not wear the red "now" paint.
+    const rowState = currentPossible && state === 'now' ? 'possible' : state;
     const word = wordOf(b, i);
     const pill = word ? `<em>${word}</em>` : '<em class="none"></em>';
-    return `<div class="row ${state} ${allPossible(b) ? 'possible' : ''}"><i></i><b>${timeOf(b)}</b><div class="right">${pill}<span class="dur">${durationOf(b)}</span></div></div>`;
+    return `<div class="row ${rowState} ${allPossible(b) ? 'possible' : ''}"><i></i><b>${timeOf(b)}</b><div class="right">${pill}<span class="dur">${durationOf(b)}</span></div></div>`;
   }).join('');
 
   const curRun = runs.find((r) => r.start <= nowi && nowi < r.end) || null;
