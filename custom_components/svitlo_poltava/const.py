@@ -16,7 +16,7 @@ PLATFORMS: list[Platform] = [
     Platform.CALENDAR,
 ]
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 DEFAULT_SCAN_INTERVAL = 120
 CONF_QUEUE = "queue"
 CONF_SCAN_INTERVAL = "scan_interval_seconds"
