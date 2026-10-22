@@ -1,92 +1,67 @@
-from __future__ import annotations
-from typing import Any, Optional
-from datetime import timedelta
+"""Sensors for the Svitlo Poltava schedule."""
 
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from __future__ import annotations
+
+from typing import Any, Optional
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTime
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, REGION
+from .entity import PoltavaEntity
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[SensorEntity] = [
-        SvitloStatusSensor(coordinator),
-        SvitloNextGridConnectionSensor(coordinator),
-        SvitloNextOutageSensor(coordinator),
-        SvitloMinutesToGridConnection(coordinator),
-        SvitloMinutesToOutage(coordinator),
-        # Нові класи з новими ID згідно з PR
-        SvitloNextPowerOn(coordinator),
-        SvitloNextPowerOff(coordinator),
-        SvitloScheduleUpdatedSensor(coordinator),
-        SvitloOutageHoursToday(coordinator),
-        SvitloOutageHoursTomorrow(coordinator),
-        SvitloLongestOutage(coordinator),
-    ]
-    async_add_entities(entities)
+    async_add_entities(
+        [
+            SvitloStatus(coordinator),
+            NextOutage(coordinator),
+            OutageHoursToday(coordinator),
+        ]
+    )
 
 
-class SvitloBaseEntity(CoordinatorEntity, SensorEntity):
-    _attr_has_entity_name = True
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-
-    @property
-    def available(self) -> bool:
-        return True
-
-    @property
-    def device_info(self) -> dict[str, Any]:
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.queue)},
-            "manufacturer": "e-potashkin",
-            "model": f"Queue {self.coordinator.queue}",
-            "name": f"Svitlo Poltava {self.coordinator.queue}",
-            "configuration_url": "https://github.com/e-potashkin/svitlo_poltava",
-        }
+def _queue(coordinator) -> str:
+    return coordinator.queue
 
 
-class SvitloStatusSensor(SvitloBaseEntity):
-    """Головний сенсор статусу."""
+class SvitloStatus(PoltavaEntity, SensorEntity):
+    """The current half-hour state plus the whole schedule in attributes."""
+
     _attr_translation_key = "svitlo_status"
     _attr_icon = "mdi:transmission-tower"
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_status_{coordinator.queue}"
+        self._attr_unique_id = f"svitlo_poltava_status_{_queue(coordinator)}"
 
     @property
-    def native_value(self) -> str | None:
-        data = getattr(self.coordinator, "data", None)
-        if not data or not getattr(self.coordinator, "last_update_success", False):
+    def native_value(self) -> str:
+        data = self.coordinator.data
+        if not data or not self.coordinator.last_update_success:
             return "No data"
-        
-        if data.get("is_emergency"):
-            return "Emergency"
+        return {
+            "on": "Grid ON",
+            "off": "Grid OFF",
+            "possible": "Possible",
+        }.get(data.get("now_status"), "No data")
 
-        val = data.get("now_status")
-        if val == "on":
-            return "Grid ON"
-        if val == "off":
-            return "Grid OFF"
-        if val == "possible":
-            return "Possible"
-        return "No data"
-    
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the state attributes."""
-        data = getattr(self.coordinator, "data", {}) or {}
+        data = self.coordinator.data or {}
         return {
             "region": REGION,
             "queue": self.coordinator.queue,
@@ -94,231 +69,33 @@ class SvitloStatusSensor(SvitloBaseEntity):
             "today_48half": data.get("today_48half", []),
             "tomorrow_48half": data.get("tomorrow_48half", []),
             "next_change_at": data.get("next_change_at"),
-            "next_possible_at": data.get("next_possible_at"),
-            "next_outage_kind": data.get("next_outage_kind"),
-            "possible_hours_today": data.get("possible_hours_today"),
-            "page_days": data.get("page_days"),
             "today_outage_hours": data.get("today_outage_hours"),
             "tomorrow_outage_hours": data.get("tomorrow_outage_hours"),
-            "longest_outage_hours": data.get("longest_outage_hours"),
-            "history_today_48half": data.get("history_today_48half", []),
-            "history_tomorrow_48half": data.get("history_tomorrow_48half", []),
             "updated": data.get("updated"),
         }
 
 
-# ---------- TIMESTAMP сенсори ----------
+class NextOutage(PoltavaEntity, SensorEntity):
+    """The next planned outage, as a timestamp."""
 
-class SvitloNextGridConnectionSensor(SvitloBaseEntity):
-    _attr_translation_key = "svitlo_next_grid"
-    _attr_icon = "mdi:clock-check"
-    _attr_device_class = SensorDeviceClass.TIMESTAMP
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_next_grid_{coordinator.queue}"
-
-    @property
-    def native_value(self):
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        if d.get("now_status") != "off":
-            return None
-        iso_val = d.get("next_on_at")
-        return dt_util.parse_datetime(iso_val) if iso_val else None
-
-
-class SvitloNextOutageSensor(SvitloBaseEntity):
     _attr_translation_key = "svitlo_next_outage"
     _attr_icon = "mdi:clock-alert"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_next_off_{coordinator.queue}"
+        self._attr_unique_id = f"svitlo_poltava_next_off_{_queue(coordinator)}"
 
     @property
     def native_value(self):
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        # local change: always report the next planned outage
-        iso_val = d.get("next_planned_off_at")
-        return dt_util.parse_datetime(iso_val) if iso_val else None
+        data = self.coordinator.data or {}
+        raw = data.get("next_planned_off_at")
+        return dt_util.parse_datetime(raw) if raw else None
 
 
-# ---------- DURATION сенсори (Нова логіка з PR) ----------
+class OutageHoursToday(PoltavaEntity, SensorEntity):
+    """Planned outage hours for today."""
 
-class SecondsRemainEntity(SvitloBaseEntity):
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_suggested_unit_of_measurement = UnitOfTime.HOURS
-    _attr_suggested_display_precision = 2
-
-    _unsub_timer = None
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        @callback
-        def _tick(now) -> None:
-            self.async_write_ha_state()
-
-        self._unsub_timer = async_track_time_interval(
-            self.hass, _tick, timedelta(seconds=10)
-        )
-
-    async def async_will_remove_from_hass(self) -> None:
-        await super().async_will_remove_from_hass()
-        if self._unsub_timer:
-            self._unsub_timer()
-            self._unsub_timer = None
-
-    def _seconds_until(self, iso_utc: Optional[str]) -> Optional[int]:
-        if not iso_utc:
-            return None
-        target = dt_util.parse_datetime(iso_utc)
-        if not target:
-            return None
-        now_utc = dt_util.utcnow()
-        delta_s = (target - now_utc).total_seconds()
-        if delta_s <= 0:
-            return 0
-        seconds = int(delta_s + 0.5)
-        return seconds
-
-
-# Тут нові класи і нові unique_id, як хотів автор PR
-class SvitloNextPowerOn(SecondsRemainEntity):
-    _attr_translation_key = "svitlo_next_power_on"
-    _attr_icon = "mdi:lightbulb-on"
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        # Новий ID
-        self._attr_unique_id = f"svitlo_poltava_next_power_on_{coordinator.queue}"
-
-    @property
-    def native_value(self) -> Optional[int]:
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        if d.get("now_status") != "off":
-            return None
-        return self._seconds_until(d.get("next_on_at"))
-
-
-class SvitloNextPowerOff(SecondsRemainEntity):
-    _attr_translation_key = "svitlo_next_power_off"
-    _attr_icon = "mdi:lightbulb-off"
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        # Новий ID
-        self._attr_unique_id = f"svitlo_poltava_next_power_off_{coordinator.queue}"
-
-    @property
-    def native_value(self) -> Optional[int]:
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        # local change: always report the next planned outage
-        return self._seconds_until(d.get("next_planned_off_at"))
-
-
-# ---------- Числові сенсори (хвилини - старі) ----------
-
-class _MinutesBase(SvitloBaseEntity):
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "min"
-    _unsub_timer = None
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        @callback
-        def _tick(now) -> None:
-            self.async_write_ha_state()
-        self._unsub_timer = async_track_time_interval(
-            self.hass, _tick, timedelta(seconds=30)
-        )
-
-    async def async_will_remove_from_hass(self) -> None:
-        await super().async_will_remove_from_hass()
-        if self._unsub_timer:
-            self._unsub_timer()
-            self._unsub_timer = None
-
-    def _minutes_until(self, iso_utc: Optional[str]) -> Optional[int]:
-        if not iso_utc:
-            return None
-        target = dt_util.parse_datetime(iso_utc)
-        if not target:
-            return None
-        now_utc = dt_util.utcnow()
-        delta_s = (target - now_utc).total_seconds()
-        if delta_s <= 0:
-            return 0
-        mins = int((delta_s + 59) // 60)
-        return mins
-
-
-class SvitloMinutesToGridConnection(_MinutesBase):
-    _attr_translation_key = "svitlo_min_to_on"
-    _attr_icon = "mdi:timer-sand"
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_min_to_on_{coordinator.queue}"
-
-    @property
-    def native_value(self) -> Optional[int]:
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        if d.get("now_status") != "off":
-            return None
-        return self._minutes_until(d.get("next_on_at"))
-
-
-class SvitloMinutesToOutage(_MinutesBase):
-    _attr_translation_key = "svitlo_min_to_off"
-    _attr_icon = "mdi:timer-sand"
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_min_to_off_{coordinator.queue}"
-
-    @property
-    def native_value(self) -> Optional[int]:
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        # local change: always report the next planned outage
-        return self._minutes_until(d.get("next_planned_off_at"))
-
-
-class SvitloScheduleUpdatedSensor(SvitloBaseEntity):
-    _attr_translation_key = "svitlo_updated"
-    _attr_icon = "mdi:update"
-    _attr_device_class = SensorDeviceClass.TIMESTAMP
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_updated_{coordinator.queue}"
-
-    @property
-    def native_value(self):
-        d = getattr(self.coordinator, "data", None)
-        if not d:
-            return None
-        iso_val = d.get("updated")
-        return dt_util.parse_datetime(iso_val) if iso_val else None
-
-
-# ---------- СТАТИСТИКА ----------
-
-class SvitloOutageHoursToday(SvitloBaseEntity):
     _attr_translation_key = "svitlo_outage_today"
     _attr_icon = "mdi:clock-alert-outline"
     _attr_native_unit_of_measurement = UnitOfTime.HOURS
@@ -327,49 +104,9 @@ class SvitloOutageHoursToday(SvitloBaseEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_outage_today_{coordinator.queue}"
+        self._attr_unique_id = f"svitlo_poltava_outage_today_{_queue(coordinator)}"
 
     @property
     def native_value(self) -> Optional[float]:
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        return d.get("today_outage_hours")
-
-
-class SvitloOutageHoursTomorrow(SvitloBaseEntity):
-    _attr_translation_key = "svitlo_outage_tomorrow"
-    _attr_icon = "mdi:calendar-clock"
-    _attr_native_unit_of_measurement = UnitOfTime.HOURS
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_suggested_display_precision = 1
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_outage_tomorrow_{coordinator.queue}"
-
-    @property
-    def native_value(self) -> Optional[float]:
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        return d.get("tomorrow_outage_hours")
-
-
-class SvitloLongestOutage(SvitloBaseEntity):
-    _attr_translation_key = "svitlo_longest_outage"
-    _attr_icon = "mdi:clock-fast"
-    _attr_native_unit_of_measurement = UnitOfTime.HOURS
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_suggested_display_precision = 1
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"svitlo_poltava_longest_outage_{coordinator.queue}"
-
-    @property
-    def native_value(self) -> Optional[float]:
-        d = getattr(self.coordinator, "data", None)
-        if not d or not getattr(self.coordinator, "last_update_success", False):
-            return None
-        return d.get("longest_outage_hours")
+        data = self.coordinator.data or {}
+        return data.get("today_outage_hours")

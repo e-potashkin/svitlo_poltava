@@ -1,11 +1,11 @@
-"""Fetch and parse the Poltavaoblenergo schedule for queue 3.1."""
+"""Read the Poltavaoblenergo page and build the 48-slot schedule."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 from datetime import date, datetime, time, timedelta
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -18,21 +18,19 @@ from .poe_gpv import STATE_OFF, STATE_ON, STATE_POSSIBLE, parse_poe_page
 
 _LOGGER = logging.getLogger(__name__)
 
-TZ_KYIV = dt_util.get_time_zone("Europe/Kyiv")
-CACHE_SECONDS = 120
+KYIV = dt_util.get_time_zone("Europe/Kyiv")
+PAGE_TTL = 120
 
 
 class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """One queue: fetch the operator page, build the 48-slot day."""
+    """Own the current schedule for one queue."""
 
     def __init__(self, hass: HomeAssistant, queue: str, scan_interval: int) -> None:
         self.queue = queue
-        self._history_today: list[list[str]] = []
-        self._history_tomorrow: list[list[str]] = []
-        self._unsub_precise: Optional[Callable[[], None]] = None
         self._days: Optional[dict[date, dict[str, list[str]]]] = None
         self._fetched: Optional[datetime] = None
         self._fetch_lock = asyncio.Lock()
+        self._timer = None
 
         super().__init__(
             hass=hass,
@@ -42,31 +40,23 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
     async def _async_update_data(self) -> dict[str, Any]:
-        page = await self._fetch_page()
+        page = await self._read_page()
         try:
             data = self._build(page)
-        except Exception as err:  # noqa: BLE001 - report, keep the last data
-            raise UpdateFailed(f"Schedule parse error: {err}") from err
-        self._schedule_precise_refresh(data)
+        except Exception as err:  # noqa: BLE001 - keep the last good data
+            raise UpdateFailed(f"Cannot build the schedule: {err}") from err
+        self._arm_timer(data)
         return data
 
-    async def _fetch_page(self) -> dict[str, Any]:
+    async def _read_page(self) -> dict[str, Any]:
         now = dt_util.utcnow()
-        if (
-            self._days is not None
-            and self._fetched
-            and (now - self._fetched).total_seconds() < CACHE_SECONDS
-        ):
-            return {"days": self._days}
+        if self._fresh(now):
+            return {"days": self._days or {}}
 
         async with self._fetch_lock:
             now = dt_util.utcnow()
-            if (
-                self._days is not None
-                and self._fetched
-                and (now - self._fetched).total_seconds() < CACHE_SECONDS
-            ):
-                return {"days": self._days}
+            if self._fresh(now):
+                return {"days": self._days or {}}
 
             session = async_get_clientsession(self.hass)
             try:
@@ -76,11 +66,11 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     timeout=30,
                 ) as response:
                     if response.status != 200:
-                        _LOGGER.warning("HTTP %s for %s", response.status, POE_GPV_URL)
+                        _LOGGER.warning("Operator page: HTTP %s", response.status)
                         return {"days": self._days or {}}
                     html = await response.text()
             except Exception as err:  # noqa: BLE001 - keep the cached page
-                _LOGGER.warning("Cannot read %s: %s", POE_GPV_URL, err)
+                _LOGGER.warning("Operator page: %s", err)
                 return {"days": self._days or {}}
 
             days = parse_poe_page(html)
@@ -88,230 +78,154 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._days = days
                 self._fetched = now
                 _LOGGER.info(
-                    "Schedule: %d day(s) %s, %d queue(s)",
+                    "Operator page: %d day(s), %d queue(s)",
                     len(days),
-                    ", ".join(sorted(day.isoformat() for day in days)),
                     len(next(iter(days.values()))),
                 )
             else:
-                _LOGGER.warning("The operator page carries no schedule; kept the cache")
+                _LOGGER.warning("Operator page has no schedule")
             return {"days": self._days or {}}
 
+    def _fresh(self, now: datetime) -> bool:
+        return bool(
+            self._days is not None
+            and self._fetched
+            and (now - self._fetched).total_seconds() < PAGE_TTL
+        )
+
     def _build(self, page: dict[str, Any]) -> dict[str, Any]:
-        """Build one queue from the operator page, and from nothing else.
-
-        The page carries three states per half hour: on, off and possible. A
-        possible window is a warning, not an outage, so "next outage" is the
-        earliest of the two and `next_outage_kind` says which one it is.
-        """
-        now = dt_util.now(TZ_KYIV)
+        """Turn the page into one queue's day, today and tomorrow."""
+        now = dt_util.now(KYIV)
         today = now.date()
-        days = (page or {}).get("days") or {}
-        today_states = (days.get(today) or {}).get(self.queue)
+        days = page.get("days") or {}
+        today_slots = (days.get(today) or {}).get(self.queue)
+        if not today_slots:
+            return self._empty(today)
+
         tomorrow = today + timedelta(days=1)
-        tomorrow_states = (days.get(tomorrow) or {}).get(self.queue)
-        updated = dt_util.utcnow().replace(microsecond=0).isoformat()
-        page_days = sorted(day.isoformat() for day in days)
+        tomorrow_slots = (days.get(tomorrow) or {}).get(self.queue) or []
+        tomorrow_iso = tomorrow.isoformat() if tomorrow_slots else None
 
-        if not today_states:
-            return {
-                "queue": self.queue,
-                "date": today.isoformat(),
-                "now_status": "nosched",
-                "now_halfhour_index": None,
-                "next_change_at": None,
-                "today_48half": [],
-                "tomorrow_48half": [],
-                "tomorrow_date": None,
-                "updated": updated,
-                "source": POE_GPV_URL,
-                "next_on_at": None,
-                "next_off_at": None,
-                "next_planned_off_at": None,
-                "next_possible_at": None,
-                "next_outage_kind": None,
-                "today_outage_hours": None,
-                "tomorrow_outage_hours": None,
-                "possible_hours_today": None,
-                "longest_outage_hours": None,
-                "history_today_48half": [],
-                "history_tomorrow_48half": [],
-                "is_emergency": False,
-                "page_days": page_days,
-            }
+        slot = now.hour * 2 + (1 if now.minute >= 30 else 0)
+        current = today_slots[slot]
 
-        today_half = list(today_states)
-        tomorrow_half = list(tomorrow_states) if tomorrow_states else []
-        tomorrow_iso = tomorrow.isoformat() if tomorrow_half else None
-        idx = now.hour * 2 + (1 if now.minute >= 30 else 0)
-        cur = today_half[idx]
-
-        next_on_at = self._find_next_at(
-            [STATE_ON], today, today_half, idx, tomorrow_iso, tomorrow_half
-        )
-        next_off_at = self._find_next_at(
-            [STATE_OFF], today, today_half, idx, tomorrow_iso, tomorrow_half
-        )
-        next_possible_at = self._find_next_at(
-            [STATE_POSSIBLE], today, today_half, idx, tomorrow_iso, tomorrow_half
+        next_on = self._next_slot([STATE_ON], today, today_slots, slot, tomorrow_iso, tomorrow_slots)
+        next_off = self._next_slot([STATE_OFF], today, today_slots, slot, tomorrow_iso, tomorrow_slots)
+        next_possible = self._next_slot(
+            [STATE_POSSIBLE], today, today_slots, slot, tomorrow_iso, tomorrow_slots
         )
 
         upcoming = [
             (stamp, kind)
-            for stamp, kind in ((next_off_at, STATE_OFF), (next_possible_at, STATE_POSSIBLE))
+            for stamp, kind in ((next_off, STATE_OFF), (next_possible, STATE_POSSIBLE))
             if stamp
         ]
-        next_planned_off_at, next_outage_kind = (
-            min(upcoming, key=lambda item: item[0]) if upcoming else (None, None)
+        planned_off, _kind = min(upcoming, key=lambda item: item[0]) if upcoming else (None, None)
+        change = next_on if current in (STATE_OFF, STATE_POSSIBLE) else min(
+            (stamp for stamp, _ in upcoming), default=None
         )
 
-        if cur in (STATE_OFF, STATE_POSSIBLE):
-            next_change_iso = next_on_at
-        else:
-            next_change_iso = min((stamp for stamp, _ in upcoming), default=None)
-
-        next_change_hhmm = None
-        if next_change_iso:
-            change = dt_util.parse_datetime(next_change_iso)
-            if change:
-                next_change_hhmm = self._localize_kyiv(change).strftime("%H:%M")
-
-        def longest_off(series: list[str]) -> float:
-            best = current = 0
-            for state in series:
-                if state == STATE_OFF:
-                    current += 1
-                    best = max(best, current)
-                else:
-                    current = 0
-            return best * 0.5
-
-        data = {
+        return {
             "queue": self.queue,
             "date": today.isoformat(),
-            "now_status": cur,
-            "now_halfhour_index": idx,
-            "next_change_at": next_change_hhmm,
-            "today_48half": today_half,
-            "tomorrow_48half": tomorrow_half,
+            "now_status": current,
+            "next_change_at": self._hhmm(change),
+            "today_48half": list(today_slots),
+            "tomorrow_48half": list(tomorrow_slots),
             "tomorrow_date": tomorrow_iso,
-            "updated": updated,
-            "source": POE_GPV_URL,
-            "next_on_at": next_on_at,
-            "next_off_at": next_off_at,
-            "next_planned_off_at": next_planned_off_at,
-            "next_possible_at": next_possible_at,
-            "next_outage_kind": next_outage_kind,
-            "today_outage_hours": today_half.count(STATE_OFF) * 0.5,
-            "tomorrow_outage_hours": (tomorrow_half.count(STATE_OFF) * 0.5) if tomorrow_half else None,
-            "possible_hours_today": today_half.count(STATE_POSSIBLE) * 0.5,
-            "longest_outage_hours": longest_off(today_half + tomorrow_half),
-            "history_today_48half": self._history_today,
-            "history_tomorrow_48half": self._history_tomorrow,
-            "is_emergency": False,
-            "page_days": page_days,
+            "updated": dt_util.utcnow().replace(microsecond=0).isoformat(),
+            "next_planned_off_at": planned_off,
+            "today_outage_hours": today_slots.count(STATE_OFF) * 0.5,
+            "tomorrow_outage_hours": (
+                tomorrow_slots.count(STATE_OFF) * 0.5 if tomorrow_slots else None
+            ),
         }
 
-        if self.data and self.data.get("date") == data["date"]:
-            old_today = self.data.get("today_48half") or []
-            if old_today and old_today != today_half:
-                if not self._history_today or old_today != self._history_today[0]:
-                    self._history_today.insert(0, old_today)
-                    self._history_today = self._history_today[:3]
-                    data["history_today_48half"] = self._history_today
-            old_tomorrow = self.data.get("tomorrow_48half") or []
-            if tomorrow_half and old_tomorrow and old_tomorrow != tomorrow_half:
-                if not self._history_tomorrow or old_tomorrow != self._history_tomorrow[0]:
-                    self._history_tomorrow.insert(0, old_tomorrow)
-                    self._history_tomorrow = self._history_tomorrow[:3]
-                    data["history_tomorrow_48half"] = self._history_tomorrow
-        elif self.data and self.data.get("date") and self.data["date"] != data["date"]:
-            _LOGGER.debug("Day rollover %s -> %s", self.data["date"], data["date"])
-            self._history_today = []
-            self._history_tomorrow = []
+    def _empty(self, today: date) -> dict[str, Any]:
+        return {
+            "queue": self.queue,
+            "date": today.isoformat(),
+            "now_status": "nosched",
+            "next_change_at": None,
+            "today_48half": [],
+            "tomorrow_48half": [],
+            "tomorrow_date": None,
+            "updated": dt_util.utcnow().replace(microsecond=0).isoformat(),
+            "next_planned_off_at": None,
+            "today_outage_hours": None,
+            "tomorrow_outage_hours": None,
+        }
 
-        return data
+    def _next_slot(
+        self,
+        targets: list[str],
+        today: date,
+        today_slots: list[str],
+        slot: int,
+        tomorrow_iso: Optional[str],
+        tomorrow_slots: list[str],
+    ) -> Optional[str]:
+        """First slot after now that holds one of the target states."""
+        for offset in range(slot + 1, len(today_slots)):
+            if today_slots[offset] in targets:
+                return self._stamp(today, offset)
+        if tomorrow_iso and tomorrow_slots:
+            day = date.fromisoformat(tomorrow_iso)
+            for offset, state in enumerate(tomorrow_slots):
+                if state in targets:
+                    return self._stamp(day, offset)
+        return None
 
-    def _schedule_precise_refresh(self, data: dict[str, Any]) -> None:
-        """Wake up exactly when the status changes, not on the next poll."""
+    @staticmethod
+    def _stamp(day: date, slot: int) -> str:
+        moment = datetime.combine(
+            day,
+            time(hour=slot // 2, minute=30 if slot % 2 else 0),
+            tzinfo=KYIV,
+        )
+        return dt_util.as_utc(moment).isoformat()
+
+    def _hhmm(self, iso: Optional[str]) -> Optional[str]:
+        if not iso:
+            return None
+        moment = dt_util.parse_datetime(iso)
+        if not moment:
+            return None
+        return self._kyiv(moment).strftime("%H:%M")
+
+    def _arm_timer(self, data: dict[str, Any]) -> None:
+        """Refresh exactly at the next status change."""
+        if self._timer:
+            self._timer()
+            self._timer = None
+
         if data.get("now_status") == "nosched":
-            if self._unsub_precise:
-                self._unsub_precise()
-                self._unsub_precise = None
             return
 
-        if self._unsub_precise:
-            self._unsub_precise()
-            self._unsub_precise = None
-
-        next_change_hhmm = data.get("next_change_at")
-        base_date_iso = data.get("date")
-        if not next_change_hhmm or not base_date_iso:
+        hhmm = data.get("next_change_at")
+        day = data.get("date")
+        if not hhmm or not day:
             return
 
         try:
-            hh, mm = [int(part) for part in next_change_hhmm.split(":")]
-            base_day = datetime.fromisoformat(base_date_iso).date()
-            local_naive = datetime.combine(
-                base_day, time(hour=hh, minute=mm, second=0, microsecond=0)
+            hour, minute = (int(part) for part in hhmm.split(":"))
+            moment = datetime.combine(
+                date.fromisoformat(day), time(hour=hour, minute=minute), tzinfo=KYIV
             )
-            candidate_kyiv = self._localize_kyiv(local_naive)
-            now_kyiv = dt_util.now(TZ_KYIV)
-            if candidate_kyiv <= now_kyiv:
-                candidate_kyiv += timedelta(days=1)
-            candidate_utc = dt_util.as_utc(candidate_kyiv)
-
-            @callback
-            def _tick(_now) -> None:
-                self.hass.async_create_task(self.async_request_refresh())
-
-            self._unsub_precise = async_track_point_in_utc_time(
-                self.hass, _tick, candidate_utc
+            if moment <= dt_util.now(KYIV):
+                moment += timedelta(days=1)
+            self._timer = async_track_point_in_utc_time(
+                self.hass, self._refresh, dt_util.as_utc(moment)
             )
-        except Exception as err:  # noqa: BLE001 - the next poll is the fallback
-            _LOGGER.debug("Cannot arm the precise refresh: %s", err)
+        except (ValueError, TypeError) as err:
+            _LOGGER.debug("Cannot arm the change timer: %s", err)
+
+    @callback
+    def _refresh(self, _now) -> None:
+        self.hass.async_create_task(self.async_request_refresh())
 
     @staticmethod
-    def _find_next_at(
-        target_states: list[str],
-        base_date: date,
-        today_half: list[str],
-        idx: int,
-        tomorrow_date_iso: Optional[str],
-        tomorrow_half: Optional[list[str]],
-    ) -> Optional[str]:
-        if not today_half:
-            return None
-        today_tail = today_half[idx + 1 :]
-        seq = list(today_tail)
-        has_tomorrow = bool(tomorrow_date_iso and tomorrow_half)
-        if has_tomorrow:
-            seq.extend(tomorrow_half or [])
-
-        pos = next((i for i, state in enumerate(seq) if state in target_states), None)
-        if pos is None:
-            return None
-
-        if pos < len(today_tail):
-            base_local_midnight = datetime.combine(
-                base_date, datetime.min.time(), tzinfo=TZ_KYIV
-            )
-            minutes_from_base = (idx + 1 + pos) * 30
-            next_local = base_local_midnight + timedelta(minutes=minutes_from_base)
-        else:
-            if not has_tomorrow:
-                return None
-            tomorrow_date = datetime.fromisoformat(tomorrow_date_iso).date()
-            base_local_midnight = datetime.combine(
-                tomorrow_date, datetime.min.time(), tzinfo=TZ_KYIV
-            )
-            minutes_into_tomorrow = (pos - len(today_tail)) * 30
-            next_local = base_local_midnight + timedelta(minutes=minutes_into_tomorrow)
-
-        return dt_util.as_utc(next_local).isoformat()
-
-    @staticmethod
-    def _localize_kyiv(value: datetime) -> datetime:
-        if value.tzinfo is not None:
-            return value.astimezone(TZ_KYIV)
-        return value.replace(tzinfo=TZ_KYIV)
+    def _kyiv(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=KYIV)
+        return value.astimezone(KYIV)

@@ -27,11 +27,26 @@ def check(name, got, want):
         failures.append(f"{name}: got {got!r}, want {want!r}")
 
 
+def runs(states, target):
+    found = []
+    start = None
+    for index, state in enumerate(states):
+        if state == target and start is None:
+            start = index
+        elif state != target and start is not None:
+            found.append((start, index))
+            start = None
+    if start is not None:
+        found.append((start, len(states)))
+    return found
+
+
+def label(index):
+    return f"{index // 2:02d}:{30 if index % 2 else 0:02d}"
+
+
 def windows(states, target):
-    return [
-        f"{poe.slot_label(start)}-{poe.slot_label(end)}"
-        for start, end in poe.window_runs(states, target)
-    ]
+    return [f"{label(start)}-{label(end)}" for start, end in runs(states, target)]
 
 
 # --- one real day ---------------------------------------------------------

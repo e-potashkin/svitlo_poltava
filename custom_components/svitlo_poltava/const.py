@@ -5,7 +5,6 @@ from __future__ import annotations
 from homeassistant.const import Platform
 
 DOMAIN = "svitlo_poltava"
-NAME = "Svitlo Poltava"
 
 # The queue is chosen in the config flow. 3.1 is Eugene's queue and the default.
 DEFAULT_QUEUE = "3.1"
@@ -17,7 +16,7 @@ PLATFORMS: list[Platform] = [
     Platform.CALENDAR,
 ]
 
-VERSION = "2.1.1"
+VERSION = "1.0.0"
 DEFAULT_SCAN_INTERVAL = 120
 CONF_QUEUE = "queue"
 CONF_SCAN_INTERVAL = "scan_interval_seconds"

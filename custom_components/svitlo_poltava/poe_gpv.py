@@ -21,15 +21,13 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from typing import Any, Optional
+from typing import Optional
 
 POE_GPV_URL = "https://www.poe.pl.ua/customs/dynamicgpv-info.php"
 
 STATE_ON = "on"
 STATE_OFF = "off"
 STATE_POSSIBLE = "possible"
-
-SLOT_LABELS = tuple(f"{hour:02d}:{minute:02d}" for hour in range(24) for minute in (0, 30))
 
 _BLOCK_RE = re.compile(r'<div[^>]*class="[^"]*gpvinfodetail[^"]*"')
 _ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S)
@@ -100,23 +98,3 @@ def parse_poe_page(html: str) -> dict[date, dict[str, list[str]]]:
         if day and queues:
             days[day] = queues
     return days
-
-
-def window_runs(states: list[str], target: str) -> list[tuple[int, int]]:
-    """Start/end slot indexes of the runs that hold `target`."""
-    runs: list[tuple[int, int]] = []
-    start: Optional[int] = None
-    for index, state in enumerate(states):
-        if state == target and start is None:
-            start = index
-        elif state != target and start is not None:
-            runs.append((start, index))
-            start = None
-    if start is not None:
-        runs.append((start, len(states)))
-    return runs
-
-
-def slot_label(index: int) -> str:
-    """'09:30' for slot 19."""
-    return SLOT_LABELS[index]

@@ -82,12 +82,16 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 async def _async_cleanup(hass: HomeAssistant, entry: ConfigEntry, queue: str) -> None:
     """Remove entities and the device that belong to a previous queue.
 
-    Every unique_id ends with the queue, so a queue change leaves the old ones
-    behind. The reload calls this before the platforms create the new set.
+    Keep only the five entities this version creates. This removes the old
+    queue's entities and the sensors that earlier versions created.
     """
+    expected = {
+        f"svitlo_poltava_{kind}_{queue}"
+        for kind in ("status", "power", "next_off", "outage_today", "calendar")
+    }
     entity_reg = er.async_get(hass)
     for entity in er.async_entries_for_config_entry(entity_reg, entry.entry_id):
-        if not entity.unique_id.endswith(f"_{queue}"):
+        if entity.unique_id not in expected:
             entity_reg.async_remove(entity.entity_id)
 
     device_reg = dr.async_get(hass)
