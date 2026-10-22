@@ -1,14 +1,12 @@
 {
   "domain": "svitlo_poltava",
   "name": "Svitlo Poltava",
-  "version": "1.0.1",
-  "documentation": "https://github.com/e-potashkin/svitlo_poltava",
-  "issue_tracker": "https://github.com/e-potashkin/svitlo_poltava/issues",
+  "codeowners": ["@e-potashkin"],
+  "config_flow": true,
   "dependencies": ["frontend", "http"],
-  "codeowners": [
-    "@e-potashkin"
-  ],
+  "documentation": "https://github.com/e-potashkin/svitlo_poltava",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/e-potashkin/svitlo_poltava/issues",
   "requirements": [],
-  "config_flow": true
+  "version": "1.0.2"
 }
