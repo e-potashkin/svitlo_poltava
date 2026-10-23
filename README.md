@@ -2,6 +2,9 @@
 
 # Svitlo Poltava
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Power outage schedule for **Poltava**, for Home Assistant. Choose your queue —
 3.1 is the default.
 
@@ -14,46 +17,6 @@ in a native dialog with the same look the dashboard used with browser_mod —
 without browser_mod. HACS installs the integration, and the card is loaded
 automatically; no manual resource entry.
 
-## Screenshots
-
-![Schedule dialog](docs/state-dialog-lit.png)
-
-![Power tile](docs/state-tile-off.png)
-
-## States
-
-The card follows the real light, not only the plan.
-
-### Outage in effect
-
-![Outage in effect](docs/state-dialog-off.png)
-
-### Possible window, light off
-
-![Possible window](docs/state-dialog-possible.png)
-
-### Light on during a planned window
-
-![Light on during a planned window](docs/state-dialog-lit.png)
-
-### Light on, next outage
-
-![Light on, next outage](docs/state-dialog-next.png)
-
-### Tomorrow published
-
-![Tomorrow published](docs/state-dialog-tomorrow.png)
-
-### No schedule
-
-![No schedule](docs/state-dialog-empty.png)
-
-### Tile: light off / on / no data
-
-| Off | On | No data |
-| --- | --- | --- |
-| <img src="docs/state-tile-off.png" width="250" alt="Tile, light off"> | <img src="docs/state-tile-on.png" width="250" alt="Tile, light on"> | <img src="docs/state-tile-empty.png" width="250" alt="Tile, no data"> |
-
 ## Features
 
 - Three states per half-hour slot: **on**, **off**, and **possible**.
@@ -62,7 +25,50 @@ The card follows the real light, not only the plan.
 - One calendar entity with the outage windows.
 - One config entry. The region is fixed; you choose the queue from the operator
   page.
+- A bundled power tile and schedule dialog.
 - Two languages: Ukrainian and English.
+
+## Screenshots
+
+The screenshots use sample schedule data.
+
+![Today's schedule with a possible window](docs/state-dialog-lit.png)
+
+![Power tile](docs/state-tile-off.png)
+
+### States
+
+The card follows the real light, not only the plan.
+
+#### Outage in effect
+
+![Outage in effect](docs/state-dialog-off.png)
+
+#### Possible window, light off
+
+![Possible window](docs/state-dialog-possible.png)
+
+#### Light on during a planned window
+
+![Light on during a planned window](docs/state-dialog-lit.png)
+
+#### Light on, next outage
+
+![Light on, next outage](docs/state-dialog-next.png)
+
+#### Tomorrow published
+
+![Tomorrow published](docs/state-dialog-tomorrow.png)
+
+#### No schedule
+
+![No schedule](docs/state-dialog-empty.png)
+
+### Tile: light off / on / no data
+
+| Off | On | No data |
+| --- | --- | --- |
+| <img src="docs/state-tile-off.png" width="250" alt="Tile, light off"> | <img src="docs/state-tile-on.png" width="250" alt="Tile, light on"> | <img src="docs/state-tile-empty.png" width="250" alt="Tile, no data"> |
 
 ## Installation
 
@@ -75,19 +81,6 @@ The card follows the real light, not only the plan.
 
 Choose your queue from the list. The list comes from the operator page; 3.1 is
 the default.
-
-## Languages
-
-The integration follows the Home Assistant profile language:
-
-1. **Ukrainian** (`uk`) and **English** (`en`) are translated.
-2. The config flow, options and entity names come from
-   `translations/uk.json` and `translations/en.json`.
-3. The card reads `hass.language`: `uk` for Ukrainian, everything else falls
-   back to English.
-
-The schedule data itself is language-neutral: it is 48 half-hour states plus
-timestamps.
 
 ## Card
 
@@ -105,8 +98,8 @@ Every option is optional:
 | `entity` | the only `sensor.svitlo_poltava_*_electricity` with a schedule | the schedule sensor |
 | `presence_entity` | `binary_sensor.grid_present` if it exists, otherwise `binary_sensor.svitlo_poltava_{queue}_power_present` | the real light |
 | `off_today_entity` | `sensor.grid_off_today` if it exists, otherwise none | measured outage hours; without it the footer prints `—` |
-| `title` | `Наявність світла` / `Power present` | tile title |
-| `dialog_title` | `Графік на сьогодні` / `Today's schedule` | dialog title |
+| `title` | `Power present` / `Наявність світла` | tile title |
+| `dialog_title` | `Today's schedule` / `Графік на сьогодні` | dialog title |
 
 The tile shows the real light. Tap it to open the 24-hour rail, one row per
 window, tomorrow's windows, and the plan and measured hours. The dialog is a
@@ -145,8 +138,21 @@ things:
    new queue in its IDs.
 2. **Update interval** — default 120 seconds, allowed range 60–600 seconds.
 
-The card finds the schedule sensor automatically. If you rename the sensor,
-set `entity` explicitly.
+The card finds the schedule sensor automatically. If you rename the sensor, set
+`entity` explicitly.
+
+## Languages
+
+The integration follows the Home Assistant profile language:
+
+1. **Ukrainian** (`uk`) and **English** (`en`) are translated.
+2. The config flow, options and entity names come from
+   `translations/uk.json` and `translations/en.json`.
+3. The card reads `hass.language`: `uk` for Ukrainian, everything else falls
+   back to English.
+
+The schedule data itself is language-neutral: it is 48 half-hour states plus
+timestamps.
 
 ## Data source
 
@@ -155,6 +161,16 @@ set `entity` explicitly.
 The page contains one or more day blocks with a 48-cell table per queue. The
 parser is in `custom_components/svitlo_poltava/poe_gpv.py`; the coordinator maps
 the queue from the config entry to the 48 half-hour slots.
+
+## Troubleshooting
+
+1. **"No schedule for today"** — the operator has not published today yet. The
+   sensor keeps the last known attributes and the card shows the empty state.
+2. **"Possible" is not an outage.** It marks a window the operator warns about;
+   the card draws it grey and never as a certain outage.
+3. **Entity IDs differ from the table** — the IDs follow the Home Assistant
+   language at install time. Search for `Svitlo Poltava` in
+   **Settings → Devices & services** instead of copying an ID from the table.
 
 ## License
 
