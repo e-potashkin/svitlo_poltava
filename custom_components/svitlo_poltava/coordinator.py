@@ -120,7 +120,15 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for stamp, kind in ((next_off, STATE_OFF), (next_possible, STATE_POSSIBLE))
             if stamp
         ]
-        planned_off, _kind = min(upcoming, key=lambda item: item[0]) if upcoming else (None, None)
+        # An outage block is the run of "off" and "possible" half hours together:
+        # the operator plans 12:00-14:00 off and 14:00-14:30 possible, and the
+        # card draws that as one block that can run until 14:30. The next
+        # planned outage is the next such BLOCK, never the "possible" tail of
+        # the block that is already running (Eugene, 2026-10-23 12:27: "не
+        # зрозумів чому next_outage = 14:00 якщо наступне в 18:00").
+        planned_off = self._next_slot(
+            [STATE_OFF, STATE_POSSIBLE], today, today_slots, slot, tomorrow_iso, tomorrow_slots
+        )
         change = next_on if current in (STATE_OFF, STATE_POSSIBLE) else min(
             (stamp for stamp, _ in upcoming), default=None
         )
@@ -165,7 +173,7 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         tomorrow_iso: Optional[str],
         tomorrow_slots: list[str],
     ) -> Optional[str]:
-        """First slot after now that OPENS a run of one of the target states.
+        """First slot after now that OPENS a run of the target states.
 
         A planned outage is a run of consecutive half-hour slots and the
         operator page stores every slot on its own. Looking for the next slot
@@ -173,7 +181,9 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         already running: at 12:05, inside a 12:00-14:00 cut, the next planned
         outage read 12:30 (the second half-hour of the same cut), so the
         countdown to the next outage counted down during the outage itself.
-        A slot opens a run only when the slot before it holds another state.
+        A slot opens a run only when the slot before it holds no target state
+        either, so a list of targets groups them: with ("off", "possible") a
+        "possible" tail stays inside the block that is already running.
         """
         tomorrow = list(tomorrow_slots) if tomorrow_iso and tomorrow_slots else []
         stamps = [self._stamp(today, offset) for offset in range(len(today_slots))]
@@ -182,7 +192,7 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             stamps += [self._stamp(day, offset) for offset in range(len(tomorrow))]
         all_slots = list(today_slots) + tomorrow
         for offset in range(slot + 1, len(all_slots)):
-            if all_slots[offset] in targets and all_slots[offset - 1] != all_slots[offset]:
+            if all_slots[offset] in targets and all_slots[offset - 1] not in targets:
                 return stamps[offset]
         return None
 
