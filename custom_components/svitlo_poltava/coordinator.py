@@ -165,15 +165,25 @@ class SvitloPoltavaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         tomorrow_iso: Optional[str],
         tomorrow_slots: list[str],
     ) -> Optional[str]:
-        """First slot after now that holds one of the target states."""
-        for offset in range(slot + 1, len(today_slots)):
-            if today_slots[offset] in targets:
-                return self._stamp(today, offset)
-        if tomorrow_iso and tomorrow_slots:
+        """First slot after now that OPENS a run of one of the target states.
+
+        A planned outage is a run of consecutive half-hour slots and the
+        operator page stores every slot on its own. Looking for the next slot
+        that merely holds the target state pointed inside the outage that was
+        already running: at 12:05, inside a 12:00-14:00 cut, the next planned
+        outage read 12:30 (the second half-hour of the same cut), so the
+        countdown to the next outage counted down during the outage itself.
+        A slot opens a run only when the slot before it holds another state.
+        """
+        tomorrow = list(tomorrow_slots) if tomorrow_iso and tomorrow_slots else []
+        stamps = [self._stamp(today, offset) for offset in range(len(today_slots))]
+        if tomorrow:
             day = date.fromisoformat(tomorrow_iso)
-            for offset, state in enumerate(tomorrow_slots):
-                if state in targets:
-                    return self._stamp(day, offset)
+            stamps += [self._stamp(day, offset) for offset in range(len(tomorrow))]
+        all_slots = list(today_slots) + tomorrow
+        for offset in range(slot + 1, len(all_slots)):
+            if all_slots[offset] in targets and all_slots[offset - 1] != all_slots[offset]:
+                return stamps[offset]
         return None
 
     @staticmethod
