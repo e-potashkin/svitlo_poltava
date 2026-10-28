@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "custom_components" / "svitlo_poltava" / "poe_gpv.py"
 FIXTURE = ROOT / "tests" / "fixtures" / "poe_gpv_2026-10-20.html"
+NEW_FIXTURE = ROOT / "tests" / "fixtures" / "poe_gpv_2026-10-28.html"
 
 spec = importlib.util.spec_from_file_location("poe_gpv", MODULE_PATH)
 poe = importlib.util.module_from_spec(spec)
@@ -77,6 +78,32 @@ check("tomorrow has 3.1", "3.1" in two_days[date(2026, 10, 21)], True)
 
 # --- a page without a table ----------------------------------------------
 check("empty page", poe.parse_poe_page("<html><body>no schedule</body></html>"), {})
+
+# --- the 2026-10-28 markup ------------------------------------------------
+# The operator rebuilt the page on 2026-10-27 at 03:29 and renamed every class.
+# The old classes (turnoff-scheduleui-table, light_N) are gone; the page now
+# carries table.gpv-table and the state lives in gpv-s1/s2/s3. Without this
+# branch the parser returns nothing and the integration keeps yesterday's day.
+new_html = NEW_FIXTURE.read_text(encoding="utf-8")
+new_days = poe.parse_poe_page(new_html)
+check("new markup: one day", sorted(new_days), [date(2026, 10, 28)])
+check("new markup: twelve queues", len(new_days[date(2026, 10, 28)]), 12)
+
+new_three_one = new_days[date(2026, 10, 28)]["3.1"]
+check("new markup: 48 slots", len(new_three_one), 48)
+check(
+    "new markup: certain windows",
+    windows(new_three_one, "off"),
+    ["06:00-06:30", "11:00-13:00", "17:00-19:30", "23:00-24:00"],
+)
+check(
+    "new markup: possible windows",
+    windows(new_three_one, "possible"),
+    ["06:30-07:00", "13:00-13:30", "19:30-20:00"],
+)
+for queue, states in new_days[date(2026, 10, 28)].items():
+    if len(states) != 48:
+        failures.append(f"new markup queue {queue}: {len(states)} slots")
 
 if failures:
     print("FAIL")
